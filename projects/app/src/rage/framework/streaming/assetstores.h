@@ -110,10 +110,10 @@ namespace rage
 	typedef fwAssetStore<fwMapTypesContents, fwMapTypesDef> fwMapTypesStore;
 
 	inline auto GetStore(ConstString fileExtension) { return strStreamingModuleMgr::GetModule(fileExtension); }
-	inline auto GetBoundStore()    { return static_cast<fwStaticBoundsStore*>(GetStore("ybn")); }
-	inline auto GetTxdStore()      { return static_cast<fwTxdStore*>(GetStore("ytd")); }
-	inline auto GetDrawableStore() { return static_cast<fwDrawableStore*>(GetStore("ydr")); }
-	inline auto GetDwdStore()      { return static_cast<fwDwdStore*>(GetStore("ydd")); }
-	inline auto GetFragmentStore() { return static_cast<fwFragmentStore*>(GetStore("yft")); }
-	inline auto GetMapTypesStore() { return static_cast<fwMapTypesStore*>(GetStore("ytyp")); }
+	inline auto GetBoundStore()    { return static_cast<fwStaticBoundsStore*>(GetStore("obn")); }
+	inline auto GetTxdStore()      { return static_cast<fwTxdStore*>(GetStore("otd")); }
+	inline auto GetDrawableStore() { return static_cast<fwDrawableStore*>(GetStore("odr")); }
+	inline auto GetDwdStore()      { return static_cast<fwDwdStore*>(GetStore("odd")); }
+	inline auto GetFragmentStore() { return static_cast<fwFragmentStore*>(GetStore("oft")); }
+	inline auto GetMapTypesStore() { return static_cast<fwMapTypesStore*>(GetStore("otyp")); }
 }

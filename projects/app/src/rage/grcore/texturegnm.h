@@ -59,7 +59,7 @@ namespace rage
 		grcTexturePC*					   m_Previous;
 		// Texture pixels, each mip map is stored next to each other without padding
 		pVoid							   m_BackingStore;
-		// Same as for m_CachedTexture, use DX11 type for simplicity
+		// Same as for m_CachedTexturePtr, use DX11 type for simplicity
 		amComPtr<ID3D11ShaderResourceView> m_ShaderResourceView;
 		grcTextureDX11_ExtraData*		   m_ExtraData;
 

@@ -82,7 +82,7 @@ namespace rageam::asset
 		void Refresh() override;
 
 		ConstWString GetXmlName()			const override { return L"TextureDictionary"; }
-		ConstWString GetCompileExtension()	const override { return L"ytd"; }
+		ConstWString GetCompileExtension()	const override { return L"otd"; }
 		u32 GetFormatVersion()				const override { return 0; }
 		u32 GetResourceVersion()			const override { return 13; }
 

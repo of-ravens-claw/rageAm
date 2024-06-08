@@ -352,7 +352,7 @@ void rage::grcTextureDX11::CreateInternal(
 
 		ID3D11Texture3D* tex;
 		AM_ASSERT_STATUS(device->CreateTexture3D(&desc, initialData, &tex));
-		m_CachedTexture = amComPtr<ID3D11Resource>((ID3D11Resource*) tex);
+		m_CachedTexturePtr = (ID3D11Resource*)tex;
 
 		if (DoesNeedStagingTexture(createType))
 		{
@@ -388,7 +388,7 @@ void rage::grcTextureDX11::CreateInternal(
 
 		ID3D11Texture2D* tex;
 		AM_ASSERT_STATUS(device->CreateTexture2D(&desc, initialData, &tex));
-		m_CachedTexture = amComPtr<ID3D11Resource>((ID3D11Resource*)tex);
+		m_CachedTexturePtr = (ID3D11Resource*)tex;
 
 		if (DoesNeedStagingTexture(createType))
 		{
@@ -438,7 +438,7 @@ void rage::grcTextureDX11::CreateInternal(
 		}
 	}
 
-	AM_ASSERT_STATUS(device->CreateShaderResourceView(m_CachedTexture.Get(), &viewDesc, &m_ShaderResourceView));
+	AM_ASSERT_STATUS(device->CreateShaderResourceView(m_CachedTexturePtr.Get(), &viewDesc, &m_ShaderResourceView));
 
 	if (UsesBackingStoreForLocks(createType) && !isFromBackingStore)
 	{
@@ -473,7 +473,7 @@ void rage::grcTextureDX11::DeleteResources()
 		m_ExtraData = nullptr;
 	}
 
-	m_CachedTexture = nullptr;
+	m_CachedTexturePtr = nullptr;
 	m_ShaderResourceView = nullptr;
 
 	// Revert cut mip maps
@@ -717,10 +717,10 @@ void rage::grcTextureDX11::CreateFromBackingStore(bool recreate)
 void rage::grcTextureDX11::SetPrivateData()
 {
 	ConstString name = GetName();
-	if (m_CachedTexture)
+	if (m_CachedTexturePtr)
 	{
-		AM_ASSERT_STATUS(m_CachedTexture->SetPrivateData(WKPDID_D3DDebugObjectName, strlen(name), name));
-		AM_ASSERT_STATUS(m_CachedTexture->SetPrivateData(TextureBackPointerGuid, sizeof(pVoid), this));
+		AM_ASSERT_STATUS(m_CachedTexturePtr->SetPrivateData(WKPDID_D3DDebugObjectName, strlen(name), name));
+		AM_ASSERT_STATUS(m_CachedTexturePtr->SetPrivateData(TextureBackPointerGuid, sizeof(pVoid), this));
 	}
 
 	if (m_ShaderResourceView)

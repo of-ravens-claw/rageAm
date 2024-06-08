@@ -29,8 +29,7 @@ rage::grcTextureReference::grcTextureReference(const datResource& rsc)
 
 	if (!m_Reference)
 	{
-		AM_WARNINGF("rage::grcTextureReference -> Unable to resolve referenced texture '%s'!", m_Name.GetCStr());
-
+		AM_WARNINGF("rage::grcTextureReference -> Unable to resolve referenced texture '%s'!", m_Name);
 		// TODO: Not found texture...
 	}
 }
@@ -40,11 +39,11 @@ void rage::grcTextureReference::SetReference(const pgPtr<grcTexture>& ref)
 	if (ref == nullptr)
 	{
 		m_Reference = nullptr;
-		m_CachedTexture = nullptr;
+		m_CachedTexturePtr = nullptr;
 		return;
 	}
 
 	AM_ASSERT(ref.Get() != this, "grcTextureReference::SetReference() -> Attempt to set reference on itself!");
 	m_Reference = ref;
-	m_CachedTexture = ref->m_CachedTexture;
+	m_CachedTexturePtr = ref->m_CachedTexturePtr;
 }

@@ -13,7 +13,8 @@
 #include "rage/atl/bitset.h"
 #include "device.h"
 
-#include <d3d11.h>
+#include <gnm.h>
+typedef sce::Gnm::Texture grcTextureObject;
 
 namespace rage
 {
@@ -134,7 +135,7 @@ namespace rage
 
 	protected:
 
-		// Unused (leftover cellGcmTexture PS3 type)
+		// Unused (leftover CellGcmTexture PS3 type)
 		struct
 		{
 			u8  Format;
@@ -150,13 +151,11 @@ namespace rage
 			u32 Pitch;
 			u32 Offset;
 		}						 m_Texture;
-		atConstString			 m_Name;
+		ConstString				 m_Name;
 		u16						 m_RefCount;
 		u8						 m_ResourceTypeAndConversionFlags;
 		u8						 m_LayerCount;
-		// Native type is void* but since in PC version there is only DX11
-		// we use smart pointer, for simplicity
-		amComPtr<ID3D11Resource> m_CachedTexture;
+		grcTextureObject*		 m_CachedTexturePtr; // Type depends on the platform that you are targeting.
 		u32						 m_PhysicalSizeAndTemplateType;
 		u32						 m_HandleIndex;
 
@@ -243,8 +242,8 @@ namespace rage
 
 		virtual bool IsSRGB() const = 0;
 
-		virtual const void* GetTexturePtr() const { return m_CachedTexture.Get(); }
-		virtual void*       GetTexturePtr() { return m_CachedTexture.Get(); }
+		virtual const void* GetTexturePtr() const { return (void*)m_CachedTexturePtr; }
+		virtual void*       GetTexturePtr() { return (void*)m_CachedTexturePtr; }
 		virtual void*       GetTextureView() const = 0;
 
 		virtual void UpdateGPUCopy() {}

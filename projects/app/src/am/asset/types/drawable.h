@@ -497,7 +497,7 @@ namespace rageam::asset
 		void RefreshTunesFromScene();
 
 		ConstWString GetXmlName()			const override { return L"Drawable"; }
-		ConstWString GetCompileExtension()	const override { return L"ydr"; }
+		ConstWString GetCompileExtension()	const override { return L"odr"; }
 		u32 GetFormatVersion()				const override { return 0; }
 		u32 GetResourceVersion()			const override { return 165; }
 

@@ -237,3 +237,20 @@ project "rageAm"
 		defines { "AM_EASYPROFILER" }
 		defines { "BUILD_WITH_EASY_PROFILER" }
 	filter {}
+
+	-- For Orbis
+	if os.getenv("SCE_ORBIS_SDK_DIR") ~= nil then
+		includedirs {
+			os.getenv("SCE_ORBIS_SDK_DIR") .. "\\target\\include_common",
+			os.getenv("SCE_ORBIS_SDK_DIR") .. "\\host_tools\\include",
+		}
+
+		libdirs {
+			os.getenv("SCE_ORBIS_SDK_DIR") .. "\\host_tools\\lib",
+		}
+		
+		defines { "ORBIS_SDK_INSTALLED=1" }
+	else
+		print("the user does not have the orbis sdk...")
+		defines { "ORBIS_SDK_INSTALLED=0" }
+	end
