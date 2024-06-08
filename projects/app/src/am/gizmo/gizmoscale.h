@@ -1,3 +1,4 @@
+#ifdef AM_INTEGRATED
 //
 // File: gizmoscale.h
 //
@@ -43,3 +44,4 @@ namespace rageam::gizmo
 		};
 	};
 }
+#endif

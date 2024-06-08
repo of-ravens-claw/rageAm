@@ -1,3 +1,4 @@
+#ifdef AM_INTEGRATED
 //
 // File: gizmorotation.h
 //
@@ -46,3 +47,4 @@ namespace rageam::gizmo
 		};
 	};
 }
+#endif

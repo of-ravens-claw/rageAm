@@ -1,3 +1,4 @@
+#ifdef AM_INTEGRATED
 #include "gizmoscale.h"
 
 GIZMO_INITIALIZE_INFO(rageam::gizmo::GizmoScale, "Scale");
@@ -71,3 +72,4 @@ rageam::List<rageam::gizmo::HitResult> rageam::gizmo::GizmoScale::HitTest(const 
 {
 	return {};
 }
+#endif

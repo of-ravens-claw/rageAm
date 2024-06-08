@@ -1,3 +1,4 @@
+#ifdef AM_INTEGRATED
 #include "gizmotranslation.h"
 #include "am/graphics/shapetest.h"
 #include "am/integration/im3d.h"
@@ -135,3 +136,4 @@ rageam::List<rageam::gizmo::HitResult> rageam::gizmo::GizmoTranslation::HitTest(
 
 	return hits;
 }
+#endif

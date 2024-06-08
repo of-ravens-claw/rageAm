@@ -1,4 +1,5 @@
-﻿//
+﻿#ifdef AM_INTEGRATED
+//
 // File: gizmobase.h
 //
 // Copyright (C) 2023-2024 ranstar74. All rights violated.
@@ -354,3 +355,4 @@ namespace rageam::gizmo
 #define GIZMO rageam::gizmo::GizmoManager::GetInstance()
 
 #define GIZMO_GET_INFO(type) &type::Info
+#endif

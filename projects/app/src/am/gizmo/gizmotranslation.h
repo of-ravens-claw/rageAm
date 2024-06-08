@@ -1,3 +1,4 @@
+#ifdef AM_INTEGRATED
 //
 // File: gizmotranslation.h
 //
@@ -47,3 +48,4 @@ namespace rageam::gizmo
 		};
 	};
 }
+#endif

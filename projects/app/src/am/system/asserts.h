@@ -36,7 +36,7 @@ namespace rageam
 #define AM_DEBUG_ASSERT(expr, fmt, ...)
 #define AM_DEBUG_ASSERTS(expr)
 #endif // DEBUG
-#define AM_ASSERTS(expr, fmt, ...)		rageam::AssertHandler(expr, #expr, __FILE__, __LINE__, "")
+#define AM_ASSERTS(expr)				rageam::AssertHandler(expr, #expr, __FILE__, __LINE__, "")
 #define AM_ASSERT(expr, fmt, ...)		rageam::AssertHandler(expr, #expr, __FILE__, __LINE__, fmt, __VA_ARGS__)
 #define AM_VERIFY(expr, fmt, ...)		rageam::VerifyHandler(expr, #expr, __FILE__, __LINE__, fmt, __VA_ARGS__)
 #define AM_UNREACHABLE(fmt, ...)		rageam::Unreachable(__FILE__, __LINE__, fmt, __VA_ARGS__)

@@ -1,3 +1,4 @@
+#ifdef AM_INTEGRATED
 #include "gizmobase.h"
 
 #include "am/graphics/shapetest.h"
@@ -662,3 +663,4 @@ bool rageam::gizmo::GizmoManager::Manipulate(ConstString id, Mat44V& inOutTransf
 	if (outIsHovered) *outIsHovered = gizmo.HitHandle != GizmoHandleID_Invalid;
 	return gizmo.Manipulated;
 }
+#endif

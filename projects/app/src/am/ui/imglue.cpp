@@ -25,6 +25,8 @@
 #include <misc/freetype/imgui_freetype.h>
 #include <easy/profiler.h>
 
+#include "am/uiapps/explorer/explorer.h"
+
 void ImGui::PushFont(ImFonts font)
 {
 	ImGuiIO& io = GetIO();
@@ -438,9 +440,8 @@ void rageam::ui::ImGlue::RegisterSystemApps()
 
 #ifdef AM_TESTBED
 	AddApp(new TestbedApp());
-#else
-	// Windows->Add(new Explorer());
 #endif
+	Windows->Add(new Explorer());
 
 	AddApp(new AssetAsyncCompiler());
 }
