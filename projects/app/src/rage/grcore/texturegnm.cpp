@@ -1,13 +1,8 @@
-#include "texturepc.h"
+#include "texturegnm.h"
 
 #include "am/graphics/image/image.h"
 #include "am/graphics/dxgi_utils.h"
 #include "am/graphics/render.h"
-#include "am/integration/memory/address.h"
-
-GUID TextureBackPointerGuid = { 0x637C4F8D, 0x7724, 0x436D, 0x0B2, 0x0D1, 0x49, 0x12, 0x5B, 0x3A, 0x2A, 0x25 };
-
-rage::grcTextureDX11_ExtraData rage::grcTextureDX11::sm_ExtraDatas[GRC_TEXTURE_DX11_EXTRA_DATA_MAX] = {};
 
 #define DXT1	0x31545844
 #define DXT2	0x32545844
@@ -25,734 +20,658 @@ rage::grcTextureDX11_ExtraData rage::grcTextureDX11::sm_ExtraDatas[GRC_TEXTURE_D
 #define BC7		0x20374342
 #define R8		0x20203852
 
-rage::grcTexture* rage::GetTextureFromResourcePointer(ID3D11Resource* resource)
+#pragma region grcOrbisDurangoTextureBase
+rage::grcOrbisDurangoTextureBase::grcOrbisDurangoTextureBase() : grcTexture(TEXTURE_NORMAL)
 {
-	grcTexture* tex;
-	UINT size = sizeof(pVoid);
-	if (resource->GetPrivateData(TextureBackPointerGuid, &size, &tex) == S_OK)
-		return tex;
-	return nullptr;
+	m_pGraphicsMem = nullptr;
+	m_GraphicsMemorySize = 0;
+	m_pLockInfoPtr = nullptr;
+	memset(&m_UserMemory, 0, sizeof(m_UserMemory));
 }
 
-rage::grcTexturePC::grcTexturePC(u16 width, u16 height, u8 mipCount, u16 stride, DXGI_FORMAT fmt) : grcTexture(TEXTURE_NORMAL)
+rage::grcOrbisDurangoTextureBase::grcOrbisDurangoTextureBase(eTextureType type) : grcTexture(type)
 {
-	m_Format = static_cast<u32>(fmt);
+	m_pGraphicsMem = nullptr;
+	m_GraphicsMemorySize = 0;
+	m_pLockInfoPtr = nullptr;
+	memset(&m_UserMemory, 0, sizeof(m_UserMemory));
+}
 
-	m_ImageType = IMAGE_TYPE_STANDARD;
-
-	m_Width = width;
-	m_Height = height;
-	m_Depth = 1;
-	m_MipCount = mipCount;
-	m_Stride = stride;
-	m_LayerCount = 0;
-	m_CutMipLevels = 0;
-
-	m_ExtraFlags = 0;
-	m_ExtraFlagsPadding = 0;
-	m_ExtraData = nullptr;
-
-	m_Next = nullptr;
-	m_Previous = nullptr;
-
-	m_BackingStore = nullptr;
-	m_InfoBits = {};
+rage:: grcOrbisDurangoTextureBase::grcOrbisDurangoTextureBase(GRC_ORBIS_DURANGO_TEXTURE_DESC& info, eTextureType type) : grcTexture(type)
+{
+	// SetFromDescription(info);
+	memset(&m_UserMemory, 0, sizeof(m_UserMemory));
 }
 
 // ReSharper disable once CppPossiblyUninitializedMember
-rage::grcTexturePC::grcTexturePC(const datResource& rsc) : grcTexture(rsc)
+rage::grcOrbisDurangoTextureBase::grcOrbisDurangoTextureBase(const datResource& rsc) : grcTexture(rsc)
 {
-	rsc.Fixup(m_BackingStore);
+	rsc.Fixup(m_Name);
+	rsc.Fixup(m_pGraphicsMem);
+	rsc.Fixup(m_pLockInfoPtr);
 }
 
-bool rage::grcTexturePC::IsValid() const
+bool rage::grcOrbisDurangoTextureBase::Copy(const grcImage* pImage)
 {
-	// Native implementation does cache check, but we don't use cache device
+	AM_UNREACHABLE("grcOrbisDurangoTextureBase::Copy() -> Not implemented.");
+}
+
+enum
+{
+	CHANNEL_ALPHA = 0,
+	CHANNEL_RED = 1,
+	CHANNEL_GREEN = 2,
+	CHANNEL_BLUE = 3,
+	CHANNEL_DEPTH = 4,
+	CHANNEL_STENCIL = 5,
+};
+
+rage::atFixedBitSet<8, u8> rage::grcOrbisDurangoTextureBase::FindUsedChannels() const
+{
+	auto eFormat = m_Texture.Format;
+	rage::atFixedBitSet<8, unsigned char> bits;
+
+	switch (eFormat)
+	{
+		// RGBA	
+	case GRC_TEMP_XG_FORMAT_R32G32B32A32_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_R32G32B32A32_FLOAT:
+	case GRC_TEMP_XG_FORMAT_R32G32B32A32_UINT:
+	case GRC_TEMP_XG_FORMAT_R32G32B32A32_SINT:
+	case GRC_TEMP_XG_FORMAT_R16G16B16A16_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_R16G16B16A16_FLOAT:
+	case GRC_TEMP_XG_FORMAT_R16G16B16A16_UNORM:
+	case GRC_TEMP_XG_FORMAT_R16G16B16A16_UINT:
+	case GRC_TEMP_XG_FORMAT_R16G16B16A16_SNORM:
+	case GRC_TEMP_XG_FORMAT_R16G16B16A16_SINT:
+	case GRC_TEMP_XG_FORMAT_R10G10B10A2_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_R10G10B10A2_UNORM:
+	case GRC_TEMP_XG_FORMAT_R10G10B10A2_UINT:
+	case GRC_TEMP_XG_FORMAT_R8G8B8A8_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_R8G8B8A8_UNORM:
+	case GRC_TEMP_XG_FORMAT_R8G8B8A8_UNORM_SRGB:
+	case GRC_TEMP_XG_FORMAT_R8G8B8A8_UINT:
+	case GRC_TEMP_XG_FORMAT_R8G8B8A8_SNORM:
+	case GRC_TEMP_XG_FORMAT_R8G8B8A8_SINT:
+	case GRC_TEMP_XG_FORMAT_B8G8R8A8_UNORM:
+	case GRC_TEMP_XG_FORMAT_B5G5R5A1_UNORM:
+	case GRC_TEMP_XG_FORMAT_BC1_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_BC1_UNORM:
+	case GRC_TEMP_XG_FORMAT_BC1_UNORM_SRGB:
+	case GRC_TEMP_XG_FORMAT_BC2_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_BC2_UNORM:
+	case GRC_TEMP_XG_FORMAT_BC2_UNORM_SRGB:
+	case GRC_TEMP_XG_FORMAT_BC3_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_BC3_UNORM:
+	case GRC_TEMP_XG_FORMAT_BC3_UNORM_SRGB:
+	case GRC_TEMP_XG_FORMAT_BC7_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_BC7_UNORM:
+	case GRC_TEMP_XG_FORMAT_BC7_UNORM_SRGB:
+		bits.Set(::CHANNEL_RED);
+		bits.Set(::CHANNEL_GREEN);
+		bits.Set(::CHANNEL_BLUE);
+		bits.Set(::CHANNEL_ALPHA);
+		break;
+
+		// RGB
+	case GRC_TEMP_XG_FORMAT_R32G32B32_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_R32G32B32_FLOAT:
+	case GRC_TEMP_XG_FORMAT_R32G32B32_UINT:
+	case GRC_TEMP_XG_FORMAT_R32G32B32_SINT:
+	case GRC_TEMP_XG_FORMAT_R9G9B9E5_SHAREDEXP:
+	case GRC_TEMP_XG_FORMAT_R11G11B10_FLOAT:
+	case GRC_TEMP_XG_FORMAT_B5G6R5_UNORM:
+	case GRC_TEMP_XG_FORMAT_B8G8R8X8_UNORM:
+	case GRC_TEMP_XG_FORMAT_R8G8_B8G8_UNORM:
+	case GRC_TEMP_XG_FORMAT_G8R8_G8B8_UNORM:
+	case GRC_TEMP_XG_FORMAT_BC6H_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_BC6H_UF16:
+	case GRC_TEMP_XG_FORMAT_BC6H_SF16:
+		bits.Set(::CHANNEL_RED);
+		bits.Set(::CHANNEL_GREEN);
+		bits.Set(::CHANNEL_BLUE);
+		break;
+
+		// RG
+	case GRC_TEMP_XG_FORMAT_R32G32_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_R32G32_FLOAT:
+	case GRC_TEMP_XG_FORMAT_R32G32_UINT:
+	case GRC_TEMP_XG_FORMAT_R32G32_SINT:
+	case GRC_TEMP_XG_FORMAT_R32G8X24_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_R16G16_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_R16G16_FLOAT:
+	case GRC_TEMP_XG_FORMAT_R16G16_UNORM:
+	case GRC_TEMP_XG_FORMAT_R16G16_UINT:
+	case GRC_TEMP_XG_FORMAT_R16G16_SNORM:
+	case GRC_TEMP_XG_FORMAT_R16G16_SINT:
+	case GRC_TEMP_XG_FORMAT_R24G8_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_R8G8_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_R8G8_UNORM:
+	case GRC_TEMP_XG_FORMAT_R8G8_UINT:
+	case GRC_TEMP_XG_FORMAT_R8G8_SNORM:
+	case GRC_TEMP_XG_FORMAT_R8G8_SINT:
+	case GRC_TEMP_XG_FORMAT_BC5_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_BC5_UNORM:
+	case GRC_TEMP_XG_FORMAT_BC5_SNORM:
+#if RSG_DURANGO
+	case GRC_TEMP_XG_FORMAT_NV12:
+#endif
+		bits.Set(::CHANNEL_RED);
+		bits.Set(::CHANNEL_GREEN);
+		break;
+
+		// R
+	case GRC_TEMP_XG_FORMAT_R32_FLOAT_X8X24_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_R32_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_R32_FLOAT:
+	case GRC_TEMP_XG_FORMAT_R32_UINT:
+	case GRC_TEMP_XG_FORMAT_R32_SINT:
+	case GRC_TEMP_XG_FORMAT_R24_UNORM_X8_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_R16_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_R16_FLOAT:
+	case GRC_TEMP_XG_FORMAT_R16_UNORM:
+	case GRC_TEMP_XG_FORMAT_R16_UINT:
+	case GRC_TEMP_XG_FORMAT_R16_SNORM:
+	case GRC_TEMP_XG_FORMAT_R16_SINT:
+	case GRC_TEMP_XG_FORMAT_R8_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_R8_UNORM:
+	case GRC_TEMP_XG_FORMAT_R8_UINT:
+	case GRC_TEMP_XG_FORMAT_R8_SNORM:
+	case GRC_TEMP_XG_FORMAT_R8_SINT:
+	case GRC_TEMP_XG_FORMAT_R1_UNORM:
+	case GRC_TEMP_XG_FORMAT_BC4_TYPELESS:
+	case GRC_TEMP_XG_FORMAT_BC4_UNORM:
+	case GRC_TEMP_XG_FORMAT_BC4_SNORM:
+		bits.Set(::CHANNEL_RED);
+		break;
+
+		// G
+	case GRC_TEMP_XG_FORMAT_X32_TYPELESS_G8X24_UINT:
+	case GRC_TEMP_XG_FORMAT_X24_TYPELESS_G8_UINT:
+		bits.Set(::CHANNEL_GREEN);
+		break;
+
+		// A
+	case GRC_TEMP_XG_FORMAT_A8_UNORM:
+		bits.Set(::CHANNEL_ALPHA);
+		break;
+
+		// Depth
+	case GRC_TEMP_XG_FORMAT_D32_FLOAT:
+	case GRC_TEMP_XG_FORMAT_D16_UNORM:
+		bits.Set(::CHANNEL_DEPTH);
+		break;
+
+	case GRC_TEMP_XG_FORMAT_D32_FLOAT_S8X24_UINT:
+	case GRC_TEMP_XG_FORMAT_D24_UNORM_S8_UINT:
+		bits.Set(::CHANNEL_DEPTH);
+		bits.Set(::CHANNEL_STENCIL);
+		break;
+
+	default:
+		AM_WARNINGF("Don't know what channels are in use in texture format %d", eFormat);
+		break;
+	}
+	return bits;
+}
+
+namespace rage
+{
+	static const rage::GRC_TEMP_XG_FORMAT translate[] =
+	{
+		GRC_TEMP_XG_FORMAT_UNKNOWN,
+		GRC_TEMP_XG_FORMAT_B5G6R5_UNORM,
+		GRC_TEMP_XG_FORMAT_B8G8R8A8_UNORM, // grctfA8R8G8B8
+		GRC_TEMP_XG_FORMAT_R16_FLOAT,
+
+		GRC_TEMP_XG_FORMAT_R32_FLOAT,
+		GRC_TEMP_XG_FORMAT_R11G11B10_FLOAT, // grctfA2B10G10R10 (PC TODO - No alpha may be trouble)
+		GRC_TEMP_XG_FORMAT_R10G10B10A2_UNORM, // grctfA2B10G10R10ATI
+		GRC_TEMP_XG_FORMAT_R16G16B16A16_FLOAT,
+
+		GRC_TEMP_XG_FORMAT_R16G16_UNORM,
+		GRC_TEMP_XG_FORMAT_R16G16_FLOAT,
+		GRC_TEMP_XG_FORMAT_R32G32B32A32_FLOAT,
+		GRC_TEMP_XG_FORMAT_R16G16B16A16_FLOAT,
+
+		GRC_TEMP_XG_FORMAT_R16G16B16A16_UNORM,
+		GRC_TEMP_XG_FORMAT_R8_UNORM, // lies .. L8
+		GRC_TEMP_XG_FORMAT_R16_UNORM, // lies .. L16
+		GRC_TEMP_XG_FORMAT_R8G8_UNORM,
+
+		GRC_TEMP_XG_FORMAT_R8G8_UNORM, // grctfG8R8_XENON
+		GRC_TEMP_XG_FORMAT_B5G5R5A1_UNORM,
+		GRC_TEMP_XG_FORMAT_D24_UNORM_S8_UINT,
+		GRC_TEMP_XG_FORMAT_B4G4R4A4_UNORM,
+
+		GRC_TEMP_XG_FORMAT_R32G32_FLOAT,
+		GRC_TEMP_XG_FORMAT_D24_UNORM_S8_UINT,
+		GRC_TEMP_XG_FORMAT_D16_UNORM,
+		GRC_TEMP_XG_FORMAT_R8G8_UNORM, // grctfG8B8
+
+		GRC_TEMP_XG_FORMAT_D32_FLOAT,
+		GRC_TEMP_XG_FORMAT_B8G8R8X8_UNORM, // grctfX8R8G8B8
+		GRC_TEMP_XG_FORMAT_UNKNOWN,  // PC TODO - No Need for a NULL format.  Color targets can be NULL for DX11.  Need to handle this everywhere
+		GRC_TEMP_XG_FORMAT_X24_TYPELESS_G8_UINT,
+		GRC_TEMP_XG_FORMAT_A8_UNORM,
+		GRC_TEMP_XG_FORMAT_R11G11B10_FLOAT,
+		GRC_TEMP_XG_FORMAT_D32_FLOAT_S8X24_UINT,
+		GRC_TEMP_XG_FORMAT_X32_TYPELESS_G8X24_UINT,
+		GRC_TEMP_XG_FORMAT_BC1_UNORM,
+		GRC_TEMP_XG_FORMAT_BC2_UNORM,
+		GRC_TEMP_XG_FORMAT_BC3_UNORM,
+		GRC_TEMP_XG_FORMAT_BC4_UNORM,
+		GRC_TEMP_XG_FORMAT_BC5_UNORM,
+		GRC_TEMP_XG_FORMAT_BC6H_UF16,
+		GRC_TEMP_XG_FORMAT_BC7_UNORM,
+		GRC_TEMP_XG_FORMAT_R8G8B8A8_SNORM, // grctfA8B8G8R8_SNORM
+		GRC_TEMP_XG_FORMAT_R8G8B8A8_UNORM, // grctfA8B8G8R8
+	#if RSG_DURANGO
+		GRC_TEMP_XG_FORMAT_NV12,
+	#endif
+	};
+	static_assert(ARRAYSIZE(translate) == grctfCount);
+
+	GRC_TEMP_XG_FORMAT ConvertToXGFormat(grcTextureFormat eFormat)
+	{
+		AM_ASSERTS(eFormat < grctfCount);
+
+		GRC_TEMP_XG_FORMAT uFormat = translate[eFormat];
+		AM_ASSERTS(uFormat != GRC_TEMP_XG_FORMAT_UNKNOWN);
+		return uFormat;
+	}
+
+	grcTextureFormat ConvertTogrcFormat(GRC_TEMP_XG_FORMAT fmt)
+	{
+		for (int i = 0; i < ARRAYSIZE(translate); i++)
+		{
+			if (translate[i] == fmt)
+				return (grcTextureFormat)i;
+		}
+
+		if (fmt == GRC_TEMP_XG_FORMAT_R8_UNORM)
+			return grctfL8; // we don't have grctfR8, but we do have grctfL8 ..
+
+		if (fmt == GRC_TEMP_XG_FORMAT_R16_UNORM)
+			return grctfL16; // we don't have grctfR16, but we do have grctfL16 ..
+
+		return grctfNone;
+	}
+
+
+	u32 GetBitsPerPixelFromFormat(grcTextureFormat eFormat)
+	{
+		static u32 translate[] =
+		{
+			0, // grctfNone,
+			16, // grctfR5G6B5,
+			32, // grctfA8R8G8B8,
+			16, // grctfR16F,
+
+			32, // grctfR32F,
+			32, // grctfA2B10G10R10, // PC TODO - No alpha may be trouble
+			32, // grctfA2B10G10R10ATI,
+			64, // grctfA16B16G16R16F,
+
+			32, // grctfG16R16,
+			32, // grctfG16R16F,
+			128, // grctfA32B32G32R32F,
+			64, // grctfA16B16G16R16F_NoExpand,
+
+			64, // grctfA16B16G16R16,
+			8, // grctfL8,
+			16, // grctfL16,
+			16, // grctfG8R8,
+
+			16, // grctfG8R8_XENON,
+			16, // grctfA1R5G5B5,
+			32, // grctfD24S8,
+			16, // grctfA4R4G4B4,
+
+			64, // grctfG32R32F,
+			32, // grctfD24FS8_ReadStencil,
+			16, // grctfD16,
+			16, // grctfG8B8,
+
+			32, // grctfD32F,
+			32, // grctfX8R8G8B8,
+			0, // grctfNULL,  // PC TODO - No Need for a NULL format.  Color targets can be NULL for DX11.  Need to handle this everywhere
+			32, // grctfX24G8,
+			8, // grctfA8,
+			32, // grctfR11G11B10F,
+			32, // grctfD32FS8,
+			32, // grctfX32S8,
+			4, // grctfDXT1,
+			8, // grctfDXT3,
+			8, // grctfDXT5,
+			4, // grctfDXT5A,
+			8, // grctfDXN,
+			8, // grctfBC6,
+			8, // grctfBC7,
+			32, // grctfA8B8G8R8_SNORM
+			32, // grctfA8B8G8R8
+	#if RSG_DURANGO
+			12, // grctfNV12
+	#endif
+		};
+		static_assert(ARRAYSIZE(translate) == grctfCount);
+		AM_ASSERTS(eFormat < grctfCount);
+		u32 uFormat = translate[eFormat];
+		return uFormat;
+	}
+}
+
+u8 rage::grcOrbisDurangoTextureBase::GetBitsPerPixel() const
+{
+	return rage::GetBitsPerPixelFromFormat((grcTextureFormat)m_Texture.Format);
+}
+
+int	rage::grcOrbisDurangoTextureBase::GetStride(u32 uMipLevel) const
+{
+	GRC_TEMP_XG_FORMAT xgFormat = (GRC_TEMP_XG_FORMAT)m_Texture.Format;
+	int width = Max<int>(1, GetWidth() >> uMipLevel);
+
+	if ((xgFormat >= GRC_TEMP_XG_FORMAT_BC1_TYPELESS && xgFormat <= GRC_TEMP_XG_FORMAT_BC1_UNORM_SRGB) || // DXT1
+		(xgFormat >= GRC_TEMP_XG_FORMAT_BC4_TYPELESS && xgFormat <= GRC_TEMP_XG_FORMAT_BC4_SNORM)) // DXT5A
+	{
+		// Round width up to next multiple of 4, then multiply by 2 (which is really divide by 4 to get # blocks and multiply by 8 bytes per block)
+		return ((width + 3) & 0xFFFC) * 2;
+	}
+
+	if ((xgFormat >= GRC_TEMP_XG_FORMAT_BC2_TYPELESS && xgFormat <= GRC_TEMP_XG_FORMAT_BC3_UNORM_SRGB) || // DXT3 or DXT5
+		(xgFormat >= GRC_TEMP_XG_FORMAT_BC5_TYPELESS && xgFormat <= GRC_TEMP_XG_FORMAT_BC5_SNORM) || // DXN
+		(xgFormat >= GRC_TEMP_XG_FORMAT_BC6H_TYPELESS && xgFormat <= GRC_TEMP_XG_FORMAT_BC7_UNORM_SRGB)) // BC6H or BC7
+	{
+		// Round width up to next multiple of 4, then multiply by 4 (which is really divide by 4 to get # blocks and multiply by 16 bytes per block)
+		return ((width + 3) & 0xFFFC) * 4;
+	}
+
+	int ret = (GetWidth() >> uMipLevel) * GetBitsPerPixelFromFormat(ConvertTogrcFormat((GRC_TEMP_XG_FORMAT)m_Texture.Format)) >> 3;
+
+	if (ret == 0) 
+		ret = 1;
+
+	return ret;
+}
+
+int rage::grcOrbisDurangoTextureBase::GetRowCount(u32 uMipLevel) const
+{
+	GRC_TEMP_XG_FORMAT xgFormat = (GRC_TEMP_XG_FORMAT)m_Texture.Format;
+	int ret = Max<int>(1, m_Texture.Height >> uMipLevel);
+
+	if ((xgFormat >= GRC_TEMP_XG_FORMAT_BC1_TYPELESS && xgFormat <= GRC_TEMP_XG_FORMAT_BC5_SNORM) || // DXT1, DXT3, DXT5, DXT5A, DXN
+		(xgFormat >= GRC_TEMP_XG_FORMAT_BC6H_TYPELESS && xgFormat <= GRC_TEMP_XG_FORMAT_BC7_UNORM_SRGB)) // BC6H or BC7
+	{
+		// Account for DXT/BC formats being in 4x4 blocks.
+		ret = Max<int>(1, (ret + 3) >> 2);
+	}
+
+	return ret;
+}
+
+bool rage::grcOrbisDurangoTextureBase::Copy2D(const void* pSrc, const grcPoint& oSrcDim, const grcRect& oDstRect, const grcTextureLock& lock, s32 iMipLevel)
+{
+	u8* bits = reinterpret_cast<u8*>(lock.Base);
+
+	u8* destPixel = bits + (lock.Pitch * oDstRect.y1) + (oDstRect.x1 * lock.BitsPerPixel >> 3); // first pixel to modify
+	const u8* srcPixel = static_cast<const u8*>(pSrc); // first pixel to read from
+
+	u32 width = ((oDstRect.x2 - oDstRect.x1) * lock.BitsPerPixel) >> 3;
+	s32 height = (oDstRect.y2 - oDstRect.y1);
+
+	for (int row = 0; row < height; row++)
+	{
+		memcpy(destPixel, srcPixel, width);
+		destPixel += lock.Pitch;
+		srcPixel += oSrcDim.x;
+	}
 	return true;
 }
 
-u32 rage::grcTexturePC::GetImageFormat() const
+void rage::grcOrbisDurangoTextureBase::EnsureGpuWritable()
 {
-	AM_UNREACHABLE("grcTexturePC::GetImageFormat() -> Not implemented.");
+	// We don't have to do anything here, this only applies to the PS4.
 }
 
-bool rage::grcTexturePC::LockRect(int layer, int mipLevel, grcTextureLock& lock, grcLockFlags lockFlags)
+void rage::grcOrbisDurangoTextureBase::SetFromDescription(GRC_ORBIS_DURANGO_TEXTURE_DESC& desc)
 {
-	AM_UNREACHABLE("grcTexturePC::LockRect() -> Not implemented.");
-}
+	m_Texture.Width = desc.m_Width;
+	m_Texture.Height = desc.m_Height;
+	m_Texture.Depth = desc.m_Depth;
+	m_Texture.Dimension = desc.m_ArrayDimension;
+	m_Texture.Mipmap = desc.m_NoOfMips;
+	m_Texture.Padding = (u8)desc.m_ExtraBindFlags;
 
-void rage::grcTexturePC::UnlockRect(grcTextureLock& lock)
-{
-	AM_UNREACHABLE("grcTexturePC::UnlockRect() -> Not implemented.");
-}
-
-rage::atFixedBitSet<8, unsigned char> rage::grcTexturePC::FindUsedChannels() const
-{
-	AM_UNREACHABLE("grcTexturePC::FindUsedChannels() -> Not implemented.");
-}
-
-rage::grcTextureDX11_ExtraData* rage::grcTextureDX11::AllocExtraData(grcsTextureSyncType syncType)
-{
-	AM_ASSERT(sm_ExtraDatasCount < GRC_TEXTURE_DX11_EXTRA_DATA_MAX,
-		"grcTextureDX11::AllocExtraData() -> Out of extra datas, possible leak?");
-
-	grcTextureDX11_ExtraData* newExtraData = nullptr;
-	for (grcTextureDX11_ExtraData& extraData : sm_ExtraDatas)
-	{
-		if (extraData.StagingTexture == nullptr)
-		{
-			newExtraData = &extraData;
-			break;
-		}
-	}
-
-	newExtraData->SyncType = syncType;
-	if (syncType == grcsTextureSync_Mutex)
-	{
-		newExtraData->Mutex = CreateMutexA(NULL, FALSE, NULL); // rage::sysIpcCreateMutex
-	}
-	else if (syncType == grcsTextureSync_DirtySemaphore)
-	{
-		newExtraData->Mutex = CreateSemaphoreA(NULL, 1, INT16_MAX, NULL); // rage::sysIpcCreateSema
-	}
-
-	return newExtraData;
-}
-
-void rage::grcTextureDX11::FreeExtraData(grcTextureDX11_ExtraData* extraData)
-{
-	if (extraData->SyncType == grcsTextureSync_Mutex)
-	{
-		CloseHandle(extraData->Mutex); // sysIpcDeleteMutex
-	}
-	else if (extraData->SyncType == grcsTextureSync_DirtySemaphore)
-	{
-		CloseHandle(extraData->Mutex); // sysIpcDeleteSema
-	}
-
-	extraData->Mutex = nullptr;
-	extraData->StagingTexture = nullptr;
-}
-
-bool rage::grcTextureDX11::DoesNeedStagingTexture(grcTextureCreateType createType)
-{
-	return createType == grcsTextureCreate_ReadWriteHasStaging;
-}
-
-bool rage::grcTextureDX11::UsesBackingStoreForLocks(grcTextureCreateType createType)
-{
-	return createType != grcsTextureCreate_WriteOnlyFromRTDynamic;
-}
-
-void rage::grcTextureDX11::GetDescUsageAndCPUAccessFlags(grcTextureCreateType createType, D3D11_USAGE& usage, u32& cpuAccessFlags)
-{
-	switch (createType)
-	{
-	case grcsTextureCreate_NeitherReadNorWrite:
-		usage = D3D11_USAGE_IMMUTABLE;
-		cpuAccessFlags = 0;
-		return;
-
-	case grcsTextureCreate_ReadWriteHasStaging:
-	case grcsTextureCreate_Write:
-		usage = D3D11_USAGE_DEFAULT;
-		cpuAccessFlags = 0;
-		return;
-
-	case grcsTextureCreate_ReadWriteDynamic:
-	case grcsTextureCreate_WriteDynamic:
-	case grcsTextureCreate_WriteOnlyFromRTDynamic:
-		usage = D3D11_USAGE_DYNAMIC;
-		cpuAccessFlags = D3D11_CPU_ACCESS_WRITE;
-		return;
-
-	default: AM_UNREACHABLE("GetDescUsageAndCPUAccessFlags() -> Unknown create type '%i'", createType);
-	}
-}
-
-DXGI_FORMAT rage::grcTextureDX11::TranslateDX9ToDX11Format(u32 fmt, bool sRGB) const
-{
-	// https://learn.microsoft.com/en-us/windows/win32/direct3d9/d3dformat
-
-	if (sRGB)
-	{
-		switch (fmt)
-		{
-		case BC7:	return DXGI_FORMAT_BC7_UNORM_SRGB;
-		case DXT1:	return DXGI_FORMAT_BC1_UNORM_SRGB;
-		case DXT2:
-		case DXT3:	return DXGI_FORMAT_BC2_UNORM_SRGB;
-		case DXT4:
-		case DXT5:	return DXGI_FORMAT_BC3_UNORM_SRGB;
-
-		case 21:
-		case 63:	return DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
-		case 32:
-		case 33:	return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-		case 22:
-		case 62:	return DXGI_FORMAT_B8G8R8X8_UNORM_SRGB;
-		case 75:
-		case 77:
-		case 79:
-		case 83:	return DXGI_FORMAT_D24_UNORM_S8_UINT;
-		case 82:
-		case 84:	return DXGI_FORMAT_D32_FLOAT;
-		}
-
-		return DXGI_FORMAT_UNKNOWN;
-	}
-
-	switch (fmt)
-	{
-	case R16:	return DXGI_FORMAT_R16_UNORM;
-	case BC6:	return DXGI_FORMAT_BC6H_UF16;
-	case BC7:	return DXGI_FORMAT_BC7_UNORM;
-	case ATI1:	return DXGI_FORMAT_BC4_UNORM;
-	case DXT1:	return DXGI_FORMAT_BC1_UNORM;
-	case ATI2:	return DXGI_FORMAT_BC5_UNORM;
-	case GRGB:	return DXGI_FORMAT_G8R8_G8B8_UNORM;
-	case RGBG:	return DXGI_FORMAT_R8G8_B8G8_UNORM;
-	case DXT2:
-	case DXT3:	return DXGI_FORMAT_BC2_UNORM;
-	case DXT4:
-	case DXT5:	return DXGI_FORMAT_BC3_UNORM;
-	case 60:
-	case G8R8:	return DXGI_FORMAT_R8G8_UNORM;
-	case 41:
-	case 50:
-	case R8:	return DXGI_FORMAT_R8_UNORM;
-
-	case 23:	return DXGI_FORMAT_B5G6R5_UNORM;
-	case 28:	return DXGI_FORMAT_A8_UNORM;
-	case 36:	return DXGI_FORMAT_R16G16B16A16_UNORM;
-	case 40:	return DXGI_FORMAT_R8G8_UINT;
-	case 21:
-	case 63:	return DXGI_FORMAT_B8G8R8A8_UNORM;
-	case 22:
-	case 62:	return DXGI_FORMAT_B8G8R8X8_UNORM;
-	case 24:
-	case 25:	return DXGI_FORMAT_B5G5R5A1_UNORM;
-	case 31:
-	case 67:
-	case 35:	return DXGI_FORMAT_R10G10B10A2_UNORM;
-	case 32:
-	case 33:	return DXGI_FORMAT_R8G8B8A8_UNORM;
-	case 34:
-	case 64:	return DXGI_FORMAT_R16G16_UNORM;
-	case 70:
-	case 80:	return DXGI_FORMAT_D16_UNORM;
-	case 71:
-	case 82:
-	case 84:	return DXGI_FORMAT_D32_FLOAT;
-	case 75:
-	case 77:
-	case 79:
-	case 83:	return DXGI_FORMAT_D24_UNORM_S8_UINT;
-	case 111:	return DXGI_FORMAT_R16_FLOAT;
-	case 112:	return DXGI_FORMAT_R16G16_FLOAT;
-	case 113:	return DXGI_FORMAT_R16G16B16A16_FLOAT;
-	case 114:	return DXGI_FORMAT_R32_FLOAT;
-	case 115:	return DXGI_FORMAT_R32G32_FLOAT;
-	case 116:	return DXGI_FORMAT_R32G32B32A32_FLOAT;
-	}
-	return DXGI_FORMAT_UNKNOWN;
-}
-
-u32 rage::grcTextureDX11::TranslateDX11ToDX9Format(DXGI_FORMAT fmt) const
-{
-	switch (fmt)
-	{
-	case DXGI_FORMAT_BC7_UNORM_SRGB:		return BC7;
-	case DXGI_FORMAT_BC1_UNORM_SRGB:		return DXT1;
-	case DXGI_FORMAT_BC2_UNORM_SRGB:		return DXT3;	// DXT2
-	case DXGI_FORMAT_BC3_UNORM_SRGB:		return DXT5;	// DXT4
-	case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:	return 21;		// 63
-	case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:	return 32;		// 33
-	case DXGI_FORMAT_B8G8R8X8_UNORM_SRGB:	return 22;		// 62
-	case DXGI_FORMAT_D24_UNORM_S8_UINT:		return 75;		// 77 79 83
-
-	case DXGI_FORMAT_BC1_UNORM:				return DXT1;
-	case DXGI_FORMAT_BC2_UNORM:				return DXT3;	// DXT2
-	case DXGI_FORMAT_BC3_UNORM:				return DXT5;	// DXT4
-	case DXGI_FORMAT_BC4_UNORM:				return ATI1;
-	case DXGI_FORMAT_BC5_UNORM:				return ATI2;
-	case DXGI_FORMAT_BC6H_UF16:				return BC6;
-	case DXGI_FORMAT_BC7_UNORM:				return BC7;
-	case DXGI_FORMAT_R16_UNORM:				return R16;
-	case DXGI_FORMAT_G8R8_G8B8_UNORM:		return GRGB;
-	case DXGI_FORMAT_R8G8_B8G8_UNORM:		return RGBG;
-	case DXGI_FORMAT_R8G8_UNORM:			return G8R8;	// 60
-	case DXGI_FORMAT_R8_UNORM:				return R8;		// 41 50
-	case DXGI_FORMAT_B5G6R5_UNORM:			return 23;
-	case DXGI_FORMAT_A8_UNORM:				return 28;
-	case DXGI_FORMAT_R16G16B16A16_UNORM:	return 36;
-	case DXGI_FORMAT_R8G8_UINT:				return 40;
-	case DXGI_FORMAT_B8G8R8A8_UNORM:		return 21;		// 63
-	case DXGI_FORMAT_B8G8R8X8_UNORM:		return 22;		// 62
-	case DXGI_FORMAT_B5G5R5A1_UNORM:		return 24;		// 25
-	case DXGI_FORMAT_R10G10B10A2_UNORM:		return 31;		// 35 67
-	case DXGI_FORMAT_R8G8B8A8_UNORM:		return 32;		// 33
-	case DXGI_FORMAT_R16G16_UNORM:			return 34;		// 64
-	case DXGI_FORMAT_D16_UNORM:				return 70;		// 80
-	case DXGI_FORMAT_D32_FLOAT:				return 71;		// 82 84
-	case DXGI_FORMAT_R16_FLOAT:				return 111;
-	case DXGI_FORMAT_R16G16_FLOAT:			return 112;
-	case DXGI_FORMAT_R16G16B16A16_FLOAT:	return 113;
-	case DXGI_FORMAT_R32_FLOAT:				return 114;
-	case DXGI_FORMAT_R32G32_FLOAT:			return 115;
-	case DXGI_FORMAT_R32G32B32A32_FLOAT:	return 116;
-
-	default:
-		AM_UNREACHABLE("grcTextureDX11::TranslateDX11ToDX9Format() -> DXGI Format '%s' is not supported.",
-			rageam::Enum::GetName(fmt));
-	}
-}
-
-void rage::grcTextureDX11::CreateInternal(
-	CreateInternalInfo& createInfo,
-	grcTextureCreateType createType,
-	grcsTextureSyncType syncType, 
-	grcBindFlags extraBindFlags,
-	bool isFromBackingStore)
-{
-	ID3D11Device* device = rageam::graphics::RenderGetDevice();
-
-	m_InfoBits.Dirty = false;
-	m_InfoBits.HasBeenDeleted = false;
-	m_InfoBits.ReadWriteAccess = createType;
-	m_InfoBits.Dynamic =
-		createType == grcsTextureCreate_ReadWriteDynamic ||
-		createType == grcsTextureCreate_WriteDynamic ||
-		createType == grcsTextureCreate_WriteOnlyFromRTDynamic;
-
-	extraBindFlags |= D3D11_BIND_SHADER_RESOURCE;
-
-	D3D11_USAGE usage;
-	u32 cpuAccessFlags;
-	GetDescUsageAndCPUAccessFlags(createType, usage, cpuAccessFlags);
-
-	D3D11_SUBRESOURCE_DATA* initialData = createInfo.SubresourceData;
-	if (usage != D3D11_USAGE_IMMUTABLE)
-		initialData = nullptr;
-
-	D3D11_SHADER_RESOURCE_VIEW_DESC viewDesc = {};
-	viewDesc.Format = GetDXGIFormat();
-
-	if (m_ImageType == IMAGE_TYPE_VOLUME)
-	{
-		D3D11_TEXTURE3D_DESC desc = {};
-		desc.Width = m_Width;
-		desc.Height = m_Height;
-		desc.Depth = m_Depth;
-		desc.MipLevels = m_MipCount;
-		desc.BindFlags = extraBindFlags;
-		desc.Usage = usage;
-		desc.CPUAccessFlags = cpuAccessFlags;
-		desc.Format = GetDXGIFormat();
-
-		ID3D11Texture3D* tex;
-		AM_ASSERT_STATUS(device->CreateTexture3D(&desc, initialData, &tex));
-		m_CachedTexturePtr = (ID3D11Resource*)tex;
-
-		if (DoesNeedStagingTexture(createType))
-		{
-			m_ExtraData = AllocExtraData(syncType);
-
-			desc.BindFlags = 0;
-			desc.Usage = D3D11_USAGE_STAGING;
-			desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE;
-
-			ID3D11Texture3D* texStaging;
-			AM_ASSERT_STATUS(device->CreateTexture3D(&desc, nullptr, &texStaging));
-			m_ExtraData->StagingTexture = amComPtr<ID3D11Resource>((ID3D11Resource*) texStaging);
-		}
-
-		viewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE3D;
-		viewDesc.Texture3D.MipLevels = m_MipCount;
-	}
-	else
-	{
-		D3D11_TEXTURE2D_DESC desc = {};
-		desc.ArraySize = m_LayerCount + 1;
-		desc.Width = m_Width;
-		desc.Height = m_Height;
-		desc.MipLevels = m_MipCount;
-		desc.BindFlags = extraBindFlags;
-		desc.Usage = usage;
-		desc.CPUAccessFlags = cpuAccessFlags;
-		desc.Format = GetDXGIFormat();
-		desc.SampleDesc.Count = 1;
-
-		if (m_ImageType == IMAGE_TUBE_CUBE)
-			desc.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
-
-		ID3D11Texture2D* tex;
-		AM_ASSERT_STATUS(device->CreateTexture2D(&desc, initialData, &tex));
-		m_CachedTexturePtr = (ID3D11Resource*)tex;
-
-		if (DoesNeedStagingTexture(createType))
-		{
-			m_ExtraData = AllocExtraData(syncType);
-
-			desc.BindFlags = 0;
-			desc.Usage = D3D11_USAGE_STAGING;
-			desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE;
-
-			if (m_StereoRTMode == grcDevice::Stereo_t::STEREO)
-			{
-				desc.Width = m_Width * 2;
-				desc.Height = m_Height + 1;
-			}
-
-			ID3D11Texture2D* texStaging;
-			AM_ASSERT_STATUS(device->CreateTexture2D(&desc, createInfo.SubresourceData, &texStaging));
-			m_ExtraData->StagingTexture = amComPtr<ID3D11Resource>((ID3D11Resource*) texStaging);
-		}
-
-		if (m_ImageType == IMAGE_TYPE_STANDARD)
-		{
-			if (desc.ArraySize == 1)
-			{
-				viewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-				viewDesc.Texture2D.MipLevels = m_MipCount;
-			}
-			else
-			{
-				viewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
-				viewDesc.Texture2DArray.MipLevels = m_MipCount;
-			}
-		}
-		else if (m_ImageType == IMAGE_TUBE_CUBE)
-		{
-			if (desc.ArraySize <= 6)
-			{
-				viewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
-				viewDesc.TextureCube.MipLevels = m_MipCount;
-			}
-			else
-			{
-				viewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBEARRAY;
-				viewDesc.TextureCubeArray.MipLevels = m_MipCount;
-				viewDesc.TextureCubeArray.NumCubes = desc.ArraySize / 6;
-			}
-		}
-	}
-
-	AM_ASSERT_STATUS(device->CreateShaderResourceView(m_CachedTexturePtr.Get(), &viewDesc, &m_ShaderResourceView));
-
-	if (UsesBackingStoreForLocks(createType) && !isFromBackingStore)
-	{
-		u32 totalMemory = CalculateMemoryForAllLayers();
-
-		m_BackingStore = GetAllocator(ALLOC_TYPE_VIRTUAL)->Allocate(totalMemory);
-		m_InfoBits.OwnsBackingStore = true;
-
-		if (createInfo.SubresourceData) // TODO: Verify if this code is right
-		{
-			char* pixelData = static_cast<char*>(m_BackingStore);
-			for (int i = 0; i < createInfo.SubresourceCount; i++)
-			{
-				D3D11_SUBRESOURCE_DATA& subData = createInfo.SubresourceData[i];
-
-				u32 sliceCount = GetSliceCount(i);
-				u32 mipSize = subData.SysMemSlicePitch * sliceCount;
-				memcpy(pixelData, subData.pSysMem, mipSize);
-				pixelData += mipSize;
-			}
-		}
-	}
-
-	SetPrivateData();
-}
-
-void rage::grcTextureDX11::DeleteResources()
-{
-	if (m_ExtraData)
-	{
-		FreeExtraData(m_ExtraData);
-		m_ExtraData = nullptr;
-	}
-
-	m_CachedTexturePtr = nullptr;
-	m_ShaderResourceView = nullptr;
-
-	// Revert cut mip maps
-	m_MipCount += m_CutMipLevels;
-	m_Width <<= m_CutMipLevels;
-	m_Height <<= m_CutMipLevels;
-	m_Stride <<= m_CutMipLevels;
-	if (m_ImageType == IMAGE_TYPE_VOLUME)
-		m_Depth <<= m_CutMipLevels;
-
-	if (m_InfoBits.OwnsBackingStore)
-		GetAllocator(ALLOC_TYPE_VIRTUAL)->Free(m_BackingStore);
-	else
-		GetAllocator(ALLOC_TYPE_PHYSICAL)->Free(m_BackingStore);
-	m_BackingStore = nullptr;
-}
-
-rage::grcTextureDX11::grcTextureDX11(u16 width, u16 height, u8 mipCount, DXGI_FORMAT fmt, pVoid data, bool storeData) :
-	grcTexturePC(width, height, mipCount, 0, fmt)
-{
-	m_Stride = GetStride(0);
-
-	u32 totalSize = CalculateMemoryForAllLayers();
-	SetPhysicalSize(totalSize);
-
-	if (!IsResourceCompiling())
-	{
-		if (storeData)
-		{
-			m_BackingStore = GetAllocator(ALLOC_TYPE_PHYSICAL)->Allocate(totalSize);
-			memcpy(m_BackingStore, data, totalSize);
-			m_InfoBits.OwnsBackingStore = true;
-		}
-		else
-		{
-			m_BackingStore = data;
-			m_InfoBits.OwnsBackingStore = false;
-		}
-
-		grcTextureDX11::CreateFromBackingStore();
-	}
-}
-
-rage::grcTextureDX11::grcTextureDX11(const grcTextureDX11& other) : grcTexturePC(other)
-{
-	m_StereoRTMode = other.m_StereoRTMode;
-
+	// We use this as the "owns allocations" flag.
 	if (IsResourceCompiling())
 	{
-		// Transfer pixel data on physical segment
-		pgSnapshotAllocator* snapshotAllocator = pgRscCompiler::GetPhysicalAllocator();
-		u32 dataSize = CalculateMemoryForAllLayers();
-		snapshotAllocator->AllocateRef(m_BackingStore, dataSize);
-		memcpy(m_BackingStore, other.m_BackingStore, dataSize);
+		m_Texture.Remap = false;
+	}
+	else
+	{
+		m_Texture.Remap = true;
+	}
 
-		m_InfoBits.OwnsBackingStore = false;
-		m_Format = TranslateDX11ToDX9Format(GetDXGIFormat());
+	m_Texture.Format = (u8)desc.m_XGFormat;
+	m_Texture.Cubemap = static_cast<u8>(desc.m_ImageType);
+	m_Texture.Location = static_cast<u8>(desc.m_TileMode);
+	m_pLockInfoPtr = new OFFSET_AND_PITCH[desc.m_NoOfMips];
+	memset(m_pLockInfoPtr, 0, sizeof(OFFSET_AND_PITCH) * desc.m_NoOfMips);
+}
+
+void rage::grcOrbisDurangoTextureBase::SetLockInfo(u32 mip, u64 offset, u64 pitch)
+{
+	AM_ASSERT(m_pLockInfoPtr, "grcOrbisDurangoTextureBase::SetLockInfo()...Expecting lock info.");
+	m_pLockInfoPtr[mip].Set(offset, pitch);
+}
+
+void rage::grcOrbisDurangoTextureBase::GetLockInfo(u32 mip, u64& offset, u64& pitch) const
+{
+	AM_ASSERT(m_pLockInfoPtr, "grcOrbisDurangoTextureBase::GetLockInfo()...Expecting lock info.");
+	m_pLockInfoPtr[mip].Get(offset, pitch);
+}
+
+bool rage::grcOrbisDurangoTextureBase::GetOwnsAllocations() const
+{
+	return m_Texture.Remap != 0;
+}
+
+void rage::grcOrbisDurangoTextureBase::SetUsesPreAllocatedMemory(bool uses)
+{
+	m_Texture.Pitch = uses ? 1 : 0;
+}
+
+bool rage::grcOrbisDurangoTextureBase::GetUsesPreAllocatedMemory() const
+{
+	return m_Texture.Pitch != 0;
+}
+#pragma endregion
+
+namespace rage
+{
+	sce::Gnm::DataFormat grcTextureGNMFormats::grctf_to_Orbis[] = {
+		sce::Gnm::kDataFormatInvalid,			// grctfNone
+		sce::Gnm::kDataFormatB5G6R5Unorm,		// grctfR5G6B5
+		sce::Gnm::kDataFormatB8G8R8A8Unorm,		// grctfA8R8G8B8
+		sce::Gnm::kDataFormatR16Float,			// grctfR16F
+		sce::Gnm::kDataFormatR32Float,			// grctfR32F
+		sce::Gnm::kDataFormatR10G10B10A2Unorm,	// grctfA2B10G10R10
+		sce::Gnm::kDataFormatR10G10B10A2Unorm,	// grctfA2B10G10R10ATI
+		sce::Gnm::kDataFormatB16G16R16A16Float,	// grctfA16B16G16R16F
+		sce::Gnm::kDataFormatR16G16Unorm,		// grctfG16R16
+		sce::Gnm::kDataFormatR16G16Float,		// grctfG16R16F
+		sce::Gnm::kDataFormatR32G32B32A32Float,	// grctfA32B32G32R32F
+		sce::Gnm::kDataFormatR32G32B32A32Float,	// grctfA16B16G16R16F_NoExpand
+		sce::Gnm::kDataFormatR16G16B16A16Unorm,	// grctfA16B16G16R16
+		sce::Gnm::kDataFormatL8Unorm,			// grctfL8
+		sce::Gnm::kDataFormatL16Unorm,			// grctfL16
+		sce::Gnm::kDataFormatR8G8Unorm,			// grctfG8R8
+		sce::Gnm::kDataFormatInvalid,			// grctfG8R8_XENON
+		sce::Gnm::kDataFormatB5G5R5A1Unorm,		// grctfA1R5G5B5
+		sce::Gnm::kDataFormatInvalid,			// grctfD24S8
+		sce::Gnm::kDataFormatB4G4R4A4Unorm,		// grctfA4R4G4B4
+		sce::Gnm::kDataFormatR32G32Float,		// grctfG32R32F
+		sce::Gnm::kDataFormatInvalid,			// grctfD24FS8_ReadStencil
+		sce::Gnm::kDataFormatInvalid,			// grctfD16
+		sce::Gnm::kDataFormatInvalid,			// grctfG8B8
+		sce::Gnm::kDataFormatInvalid,			// grctfD32F
+		sce::Gnm::kDataFormatB8G8R8X8Unorm,		// grctfX8R8G8B8
+		sce::Gnm::kDataFormatInvalid,			// grctfNULL
+		sce::Gnm::kDataFormatInvalid,			// grctfX24G8 -- note: use kDataFormatX24G8Uint for rendertargets
+		sce::Gnm::kDataFormatA8Unorm,			// grctfA8
+		sce::Gnm::kDataFormatR11G11B10Float,	// grctfR11G11B10F
+		sce::Gnm::kDataFormatInvalid,			// grctfD32FS8
+		sce::Gnm::kDataFormatInvalid,			// grctfX32S8
+		sce::Gnm::kDataFormatBc1Unorm,			// grctfDXT1
+		sce::Gnm::kDataFormatBc2Unorm,			// grctfDXT3
+		sce::Gnm::kDataFormatBc3Unorm,			// grctfDXT5
+		sce::Gnm::kDataFormatBc4Unorm,			// grctfDXT5A
+		sce::Gnm::kDataFormatBc5Unorm,			// grctfDXN
+		sce::Gnm::kDataFormatBc6Uf16,			// grctfBC6
+		sce::Gnm::kDataFormatBc7Unorm,			// grctfBC7
+		sce::Gnm::kDataFormatR8G8B8A8Snorm,		// grctfA8B8G8R8_SNORM
+		sce::Gnm::kDataFormatR8G8B8A8Unorm		// grctfA8B8G8R8
+
+	};
+	static_assert(ARRAYSIZE(grcTextureGNMFormats::grctf_to_Orbis) == grctfCount);
+
+	const sce::Gnm::DataFormat sce__Gnm__kDataFormatL4A4Unorm = { {{sce::Gnm::kSurfaceFormat4_4, sce::Gnm::kTextureChannelTypeUNorm, sce::Gnm::kTextureChannelX, sce::Gnm::kTextureChannelX, sce::Gnm::kTextureChannelX, sce::Gnm::kTextureChannelY}} };
+
+	sce::Gnm::DataFormat grcTextureGNMFormats::grcImage_to_Orbis[] = {
+		sce::Gnm::kDataFormatInvalid,			// UNKNOWN                    , // 0
+		sce::Gnm::kDataFormatBc1Unorm,			// DXT1                       , // 1
+		sce::Gnm::kDataFormatBc2Unorm,			// DXT3                       , // 2
+		sce::Gnm::kDataFormatBc3Unorm,			// DXT5                       , // 3
+		sce::Gnm::kDataFormatInvalid,			// CTX1                       , // 4 - like DXT1 but anchor colors are 8.8 instead of 5.6.5 (XENON-specific)
+		sce::Gnm::kDataFormatInvalid,			// DXT3A                      , // 5 - alpha block of DXT3 (XENON-specific)
+		sce::Gnm::kDataFormatInvalid,			// DXT3A_1111                 , // 6 - alpha block of DXT3, split into four 1-bit channels (XENON-specific)
+		sce::Gnm::kDataFormatBc4Unorm,			// DXT5A                      , // 7 - alpha block of DXT5 (aka 'BC4', 'ATI1')
+		sce::Gnm::kDataFormatBc5Unorm,			// DXN                        , // 8
+		sce::Gnm::kDataFormatBc6Uf16,			// BC6                        , // 8
+		sce::Gnm::kDataFormatBc7Unorm,			// BC7                        , // 8
+		sce::Gnm::kDataFormatB8G8R8A8Unorm,		// A8R8G8B8                   , // 9
+		sce::Gnm::kDataFormatR8G8B8A8Unorm,		// A8B8G8R8                   , // 10
+		sce::Gnm::kDataFormatA8Unorm,			// A8                         , // 11 - 8-bit alpha-only (color is black)
+		sce::Gnm::kDataFormatL8Unorm,			// L8                         , // 12 - 8-bit luminance (R=G=B=L, alpha is opaque)
+		sce::Gnm::kDataFormatL8A8Unorm,			// A8L8                       , // 13 - 16-bit alpha + luminance
+		sce::Gnm::kDataFormatB4G4R4A4Unorm,		// A4R4G4B4                   , // 14 - 16-bit color and alpha
+		sce::Gnm::kDataFormatB5G5R5A1Unorm,		// A1R5G5B5                   , // 15 - 16-bit color with 1-bit alpha
+		sce::Gnm::kDataFormatB5G6R5Unorm,		// R5G6B5                     , // 16 - 16-bit color
+		sce::Gnm::kDataFormatInvalid,			// R3G3B2                     , // 17 - 8-bit color (not supported on consoles)
+		sce::Gnm::kDataFormatInvalid,			// A8R3G3B2                   , // 18 - 16-bit color with 8-bit alpha (not supported on consoles)
+		sce__Gnm__kDataFormatL4A4Unorm,			// A4L4                       , // 19 - 8-bit alpha + luminance (not supported on consoles)
+		sce::Gnm::kDataFormatB10G10R10A2Unorm,	// A2R10G10B10                , // 20 - 32-bit color with 2-bit alpha
+		sce::Gnm::kDataFormatR10G10B10A2Unorm,	// A2B10G10R10                , // 21 - 32-bit color with 2-bit alpha
+		sce::Gnm::kDataFormatR16G16B16A16Unorm,	// A16B16G16R16               , // 22 - 64-bit four channel fixed point (s10e5 per channel -- sign, 5 bit exponent, 10 bit mantissa)
+		sce::Gnm::kDataFormatR16G16Unorm,		// G16R16                     , // 23 - 32-bit two channel fixed point
+		sce::Gnm::kDataFormatL16Unorm,			// L16                        , // 24 - 16-bit luminance
+		sce::Gnm::kDataFormatR16G16B16A16Float,	// A16B16G16R16F              , // 25 - 64-bit four channel floating point (s10e5 per channel)
+		sce::Gnm::kDataFormatR16G16Float,		// G16R16F                    , // 26 - 32-bit two channel floating point (s10e5 per channel)
+		sce::Gnm::kDataFormatR16Float,			// R16F                       , // 27 - 16-bit single channel floating point (s10e5 per channel)
+		sce::Gnm::kDataFormatR32G32B32A32Float,	// A32B32G32R32F              , // 28 - 128-bit four channel floating point (s23e8 per channel)
+		sce::Gnm::kDataFormatR32G32Float,		// G32R32F                    , // 29 - 64-bit two channel floating point (s23e8 per channel)
+		sce::Gnm::kDataFormatR32Float,			// R32F                       , // 30 - 32-bit single channel floating point (s23e8 per channel)
+		sce::Gnm::kDataFormatInvalid,			// D15S1                      , // 31 - 16-bit depth + stencil (depth is 15-bit fixed point, stencil is 1-bit) (not supported on consoles)
+		sce::Gnm::kDataFormatInvalid,			// D24S8                      , // 32 - 32-bit depth + stencil (depth is 24-bit fixed point, stencil is 8-bit)
+		sce::Gnm::kDataFormatInvalid,			// D24FS8                     , // 33 - 32-bit depth + stencil (depth is 24-bit s15e8, stencil is 8-bit)
+		sce::Gnm::kDataFormatInvalid,			// P4                         , // 34 - 4-bit palettized (not supported on consoles)
+		sce::Gnm::kDataFormatInvalid,			// P8                         , // 35 - 8-bit palettized (not supported on consoles)
+		sce::Gnm::kDataFormatInvalid,			// A8P8                       , // 36 - 16-bit palettized with 8-bit alpha (not supported on consoles)
+		sce::Gnm::kDataFormatR8Unorm,			// R8                         , // 37 - non-standard R001 format (8 bits per channel)
+		sce::Gnm::kDataFormatR16Unorm,			// R16                        , // 38 - non-standard R001 format (16 bits per channel)
+		sce::Gnm::kDataFormatR8G8Unorm,			// G8R8                       , // 39 - non-standard RG01 format (8 bits per channel)
+		sce::Gnm::kDataFormatInvalid,			// LINA32B32G32R32F_DEPRECATED, // 40
+		sce::Gnm::kDataFormatInvalid,			// LINA8R8G8B8_DEPRECATED     , // 41
+		sce::Gnm::kDataFormatInvalid,			// LIN8_DEPRECATED            , // 42
+		sce::Gnm::kDataFormatInvalid,			// RGBE                       , // 43
+	};
+	static_assert(ARRAYSIZE(grcTextureGNMFormats::grcImage_to_Orbis) == 46);
+
+	grcTextureFormat Orbis_to_grctf(sce::Gnm::DataFormat orbis)
+	{
+		for (int i = 1; i < grctfCount; i++) {
+			if (orbis.m_asInt == grcTextureGNMFormats::grctf_to_Orbis[i].m_asInt)
+				return (grcTextureFormat)i;
+		}
+		return grctfNULL;
 	}
 }
 
-rage::grcTextureDX11::grcTextureDX11(const datResource& rsc) : grcTexturePC(rsc)
-{
-	u32 formatDX9 = m_Format;
-	m_Format = static_cast<u32>(TranslateDX9ToDX11Format(m_Format, m_InfoBits.IsSRGB));
-	AM_ASSERT(m_Format != DXGI_FORMAT_UNKNOWN, "grcTextureDX11() -> Unknown DX9 format '%u' in resource file.", formatDX9);
+#define GNM_TEXTURE GetUserMemory()->m_GnmTexture
 
-	grcTextureDX11::CreateFromBackingStore(false);
-	grcTextureDX11::SetPrivateData();
+sce::Gnm::SizeAlign rage::grcTextureGNM::InitGnmTexture()
+{
+	sce::Gnm::SizeAlign result;
+	sce::Gnm::DataFormat format = grcTextureGNMFormats::grctf_to_Orbis[ConvertTogrcFormat((GRC_TEMP_XG_FORMAT)m_Texture.Format)];
+
+	if (GetDepth() > 1)
+		result = GetGnmTexture().initAs3d(GetWidth(), GetHeight(), GetDepth(), GetMipMapCount(), format, (sce::Gnm::TileMode)m_Texture.Location);
+	else
+		result = GetGnmTexture().initAs2d(GetWidth(), GetHeight(), GetMipMapCount(), format, (sce::Gnm::TileMode)m_Texture.Location, sce::Gnm::kNumFragments1);
+
+	m_CachedTexturePtr = &GetGnmTexture();
+	return result;
 }
 
-rage::grcTextureDX11::~grcTextureDX11()
+rage::grcTextureGNM::grcTextureGNM(u32 width, u32 height, u32 format, void* pBuffer, TextureCreateParams* params)
 {
-	DeleteResources();
+
 }
 
-u32 rage::grcTextureDX11::GetStride(int mip) const
+rage::grcTextureGNM::grcTextureGNM(u32 width, u32 height, u32 depth, u32 format, void* pBuffer,
+	TextureCreateParams* params)
 {
-	u32 width = MAX(GetWidth() >> mip, 1);
+}
 
-	DXGI_FORMAT format = GetDXGIFormat();
-	if (!rageam::graphics::DXGI::IsCompressed(format))
+rage::grcTextureGNM::grcTextureGNM(const datResource& rsc) : grcOrbisDurangoTextureBase(rsc)
+{
+	sce::Gnm::SizeAlign result = InitGnmTexture();
+	u64 pAligned = (u64)m_pGraphicsMem + ((u64)result.m_align - 1) & ~((u64)result.m_align - 1);
+	AM_ASSERT(pAligned == (u64)m_pGraphicsMem, "grcTextureGNM::grcTextureGNM(datResource& rsc) -> Bad alignment encountered.");
+
+	GetGnmTexture().setBaseAddress256ByteBlocks((u64)m_pGraphicsMem >> 8);
+}
+
+bool rage::grcTextureGNM::LockRect(int layer, int mipLevel, grcTextureLock& lock, grcLockFlags lockFlags)
+{
+	AM_ASSERTS(layer == 0);
+	AM_ASSERTS(mipLevel < GetMipMapCount());
+
+	lock.BitsPerPixel = GetBitsPerPixel();
+	lock.Width = GetWidth() >> mipLevel;
+	lock.Height = GetHeight() >> mipLevel;
+	lock.MipLevel = mipLevel;
+	lock.Layer = 0;
+	lock.RawFormat = GetGnmTexture().getDataFormat().m_asInt;
+
+	size_t offset = 0;
+	size_t pitch = 0;
+
+	if (GetDepth() == 1)
 	{
-		return width * rageam::graphics::DXGI::BytesPerPixel(format);
+		GetLockInfo(mipLevel, offset, pitch);
 	}
-
-	u32 totalNumBlocks = (width + 3) / 4; // Rounded up block count
-
-	// BC1/BC4 encoded block size is 128 bits (8 bytes)
-	if (rageam::graphics::DXGI::IsBC1(format) || rageam::graphics::DXGI::IsBC4(format))
-		return totalNumBlocks * 8;
-
-	// Other BC formats block size is 256 bits(16 bytes)
-	// BC2, BC3, BC5, BC7
-	return totalNumBlocks * 16;
-}
-
-u32 rage::grcTextureDX11::GetRowCount(int mip) const
-{
-	u32 mipHeight = GetHeight() >> mip;
-	if (rageam::graphics::DXGI::IsCompressed(GetDXGIFormat()))
+	else
 	{
-		mipHeight = (mipHeight + 3) / 4; // Rounded up block count
-	}
-	return MAX(mipHeight, 1);
-}
-
-u32 rage::grcTextureDX11::GetSliceCount(int mip) const
-{
-	return MAX(m_Depth >> mip, 1);
-}
-
-u32 rage::grcTextureDX11::GetTotalMipSize(int mip) const
-{
-	return GetStride(mip) * GetRowCount(mip) * GetSliceCount(mip);
-}
-
-u32 rage::grcTextureDX11::CalculateMemoryForASingleLayer() const
-{
-	u32 size = 0;
-	for (int i = 0; i < m_MipCount; i++)
-	{
-		size += GetTotalMipSize(i);
-	}
-	return size;
-}
-
-u32 rage::grcTextureDX11::CalculateMemoryForAllLayers() const
-{
-	return CalculateMemoryForASingleLayer() * (m_LayerCount + 1);
-}
-
-u8 rage::grcTextureDX11::GetBitsPerPixel() const
-{
-	return rageam::graphics::DXGI::BitsPerPixel(GetDXGIFormat());
-}
-
-void rage::grcTextureDX11::CreateFromBackingStore(bool recreate)
-{
-	m_StereoRTMode = grcDevice::Stereo_t::AUTO;
-
-	char* pixelData = static_cast<char*>(m_BackingStore);
-	grcBindFlags bindFlags = grcBindNone;
-	grcTextureCreateType createType = grcsTextureCreate_NeitherReadNorWrite;
-
-	// NOTE: Native function selects first mip map based on graphical settings, we don't do this
-	if (!recreate) // Texture was already scaled down before...
-	{
-		m_CutMipLevels = 0; // rage::grcTexturePC::GetMipLevelScaleQuality
-
-		if (m_CutMipLevels > 0)
+		for (int i = 0; i <= mipLevel; i++)
 		{
-			for (int i = 0; i < m_CutMipLevels; i++)
-			{
-				pixelData += GetTotalMipSize(m_CutMipLevels);
-			}
+			sce::GpuAddress::SurfaceInfo surfaceInfo;
+			sce::GpuAddress::TilingParameters tilingParams;
+			tilingParams.initFromTexture(&GetGnmTexture(), i, 0);
+			sce::GpuAddress::computeSurfaceInfo(&surfaceInfo, &tilingParams);
+			pitch = (surfaceInfo.m_pitch * surfaceInfo.m_bitsPerElement) >> 3;
 
-			m_MipCount -= m_CutMipLevels;
-			m_Width >>= m_CutMipLevels;
-			m_Height >>= m_CutMipLevels;
-			m_Stride >>= m_CutMipLevels;
-			if (m_ImageType == IMAGE_TYPE_VOLUME)
-				m_Depth >>= m_CutMipLevels;
+			if (i != mipLevel)
+				offset += (lock.Pitch * surfaceInfo.m_height * surfaceInfo.m_depth);
 		}
 	}
+	lock.Base = (char*)m_pGraphicsMem + offset;
+	lock.Pitch = pitch;
 
-	// R* texture compressor creates all mip maps (up to 1x1) for block compressed formats,
-	// DX11 does not allow such textures because lowest compressible pixel block size is 4x4
-	if (rageam::graphics::DXGI::IsCompressed(GetDXGIFormat()))
-	{
-		int maxMipCount = rageam::graphics::ImageComputeMaxMipCount(m_Width, m_Height);
-		m_MipCount = MIN(m_MipCount, maxMipCount);
-	}
-
-	D3D11_SUBRESOURCE_DATA resourceData[rageam::graphics::IMAGE_MAX_MIP_MAPS];
-	for (int i = 0; i < m_MipCount; i++)
-	{
-		u32 stride = GetStride(i);
-		u32 rowCount = GetRowCount(i);
-		u32 sliceCount = GetSliceCount(i);
-
-		resourceData[i].pSysMem = pixelData;
-		resourceData[i].SysMemPitch = stride;
-		resourceData[i].SysMemSlicePitch = stride * rowCount;
-
-		pixelData += static_cast<size_t>(stride * rowCount * sliceCount);
-	}
-
-	if (m_Name)
-	{
-		atHashValue prefixHash = atStringViewHash(m_Name, 9);
-		// Create RT for scaleform placeholder
-		if (prefixHash == atStringHash("script_rt"))
-		{
-			DXGI_FORMAT newFormat = GetDXGIFormat();
-			// Can't create render target with compressed pixel format
-			if (rageam::graphics::DXGI::IsCompressed(newFormat))
-				m_Format = DXGI_FORMAT_R8G8B8A8_TYPELESS;
-			newFormat = rageam::graphics::DXGI::ToTypeless(newFormat);
-			newFormat = rageam::graphics::DXGI::ToTexture(newFormat);
-			m_Format = static_cast<u32>(newFormat);
-
-			bindFlags = grcBindRenderTarget;
-			createType = grcsTextureCreate_ReadWriteHasStaging;
-		}
-		else if (!m_ExtraFlags)
-		{
-			if (prefixHash == atStringHash("pedmugsho"))
-			{
-				// Such run-time generated textures are compressed using very fast (and terrible) DXT1 encoder
-				if (rageam::graphics::DXGI::IsBC1(GetDXGIFormat()))
-				{
-					createType = grcsTextureCreate_Write;
-				}
-			}
-			else if (prefixHash == atStringHash("mp_crewpa") && atStringHash(m_Name) == atStringHash("mp_crewpalette"))
-			{
-				createType = grcsTextureCreate_Write;
-			}
-		}
-	}
-
-	bool isFromBackingStore = true;
-	if (m_ExtraFlags)
-	{
-		createType = grcsTextureCreate_ReadWriteHasStaging;
-		isFromBackingStore = false;
-		m_BackingStore = nullptr;
-	}
-
-	CreateInternalInfo createInternalInfo;
-	createInternalInfo.SubresourceData = resourceData;
-	createInternalInfo.SubresourceCount = m_MipCount;
-	CreateInternal(createInternalInfo, createType, grcsTextureSync_Mutex, bindFlags, isFromBackingStore);
-
-	if (!m_InfoBits.OwnsBackingStore && !tl_KeepResourcePixelData)
-	{
-		m_BackingStore = nullptr;
-	}
+	return true;
 }
 
-void rage::grcTextureDX11::SetPrivateData()
+void rage::grcTextureGNM::UnlockRect(grcTextureLock& lock)
 {
-	ConstString name = GetName();
-	if (m_CachedTexturePtr)
-	{
-		AM_ASSERT_STATUS(m_CachedTexturePtr->SetPrivateData(WKPDID_D3DDebugObjectName, strlen(name), name));
-		AM_ASSERT_STATUS(m_CachedTexturePtr->SetPrivateData(TextureBackPointerGuid, sizeof(pVoid), this));
-	}
-
-	if (m_ShaderResourceView)
-	{
-		char buffer[256];
-		size_t len = sprintf_s(buffer, 256, "%s - Resource", name) + 1;
-		AM_ASSERT_STATUS(m_ShaderResourceView->SetPrivateData(WKPDID_D3DDebugObjectName, len, buffer));
-	}
-
-	if (m_ExtraData && m_ExtraData->StagingTexture)
-	{
-		char buffer[256];
-		size_t len = sprintf_s(buffer, 256, "%s - Staging", name) + 1;
-		AM_ASSERT_STATUS(m_ExtraData->StagingTexture->SetPrivateData(WKPDID_D3DDebugObjectName, len, buffer));
-	}
-}
-
-bool rage::grcTextureDX11::CopyTo(grcImage* image, bool invert)
-{
-	AM_UNREACHABLE("grcTextureDX11::CopyTo() -> Not implemented.");
-}
-
-bool rage::grcTextureDX11::LockRect(int layer, int mipLevel, grcTextureLock& lock, grcLockFlags lockFlags)
-{
-	static auto fn = gmAddress::Scan("4C 89 4C 24 20 44 89 44 24 18 89 54 24 10 48 89 4C 24 08 48 83 EC 38 C6 44 24 28", "rage::grcTextureDX11::LockRect")
-		.ToFunc<bool(grcTexture*, int, int, grcTextureLock&, grcLockFlags)>();
-	return fn(this, layer, mipLevel, lock, lockFlags);
-}
-
-void rage::grcTextureDX11::UnlockRect(grcTextureLock& lock)
-{
-	static auto fn = gmAddress::Scan("44 88 44 24 18 48 89 54 24 10 48 89 4C 24 08 56 57 48 83 EC 78 C6", "rage::grcTextureDX11::UnlockRect_Internal")
-		.ToFunc<bool(grcTexture*, grcTextureLock&, bool)>();
-	fn(this, lock, false /* allowContextLocks */);
+	// Does nothing, yes, really.
 }

@@ -1,6 +1,6 @@
 #include "texture.h"
 
-#include "texturepc.h"
+#include "texturegnm.h"
 
 rage::grcTexture::grcTexture(eTextureType type, ConstString name)
 {
@@ -37,13 +37,13 @@ rage::grcTexture::grcTexture(const datResource& rsc)
 rage::grcTexture* rage::grcTexture::Place(const datResource& rsc, grcTexture* that)
 {
 	AM_ASSERT(that->GetResourceType() == TEXTURE_NORMAL, "grcTexture::Place() -> Only normal texture type is currently supported!");
-	return new (that) grcTextureDX11(rsc);
+	return new (that) grcTextureGNM(rsc);
 }
 
 rage::grcTexture* rage::grcTexture::Snapshot(pgSnapshotAllocator* allocator, grcTexture* from)
 {
 	AM_ASSERTS(from);
 	AM_ASSERTS(from->GetResourceType() == TEXTURE_NORMAL);
-	pVoid block = allocator->Allocate(sizeof grcTextureDX11);
-	return new (block) grcTextureDX11(*reinterpret_cast<grcTextureDX11*>(from));
+	pVoid block = allocator->Allocate(sizeof grcTextureGNM);
+	return new (block) grcTextureGNM(*reinterpret_cast<grcTextureGNM*>(from));
 }

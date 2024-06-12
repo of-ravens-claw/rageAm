@@ -16,6 +16,66 @@
 #include <gnm.h>
 typedef sce::Gnm::Texture grcTextureObject;
 
+#define NONPSN_FMT_ONLY(x) x
+#define PSN_FMT_ONLY(x) x##_DONTUSE
+#define XENON_FMT_ONLY(x) x##_DONTUSE
+#define PC_FMT_ONLY(x) x
+
+enum grcTextureFormat
+{
+	grctfNone,
+	grctfR5G6B5,									//PSN:CELL_GCM_TEXTURE_R5G6B5
+	grctfA8R8G8B8,									//PSN:CELL_GCM_TEXTURE_A8R8G8B8
+	NONPSN_FMT_ONLY(grctfR16F),
+
+	grctfR32F,										//PSN:CELL_GCM_TEXTURE_X32_FLOAT
+	NONPSN_FMT_ONLY(grctfA2B10G10R10),				// A10B10G10R10F_EDRAM on Xenon, A16B16G16R16F on PC.
+	NONPSN_FMT_ONLY(grctfA2B10G10R10ATI),			// A10B10G10R10 for ATI graphics cards on PC or a 10-bit integer format for 360
+	grctfA16B16G16R16F,								//PSN:CELL_GCM_TEXTURE_W16_Z16_Y16_X16_FLOAT
+
+	grctfG16R16,									// On PS3, you have to pack the values when writing to render targets of this type with the Cg intrinsics unpack_4ubyte(pack_2ushort(float2)), PSN:CELL_GCM_TEXTURE_Y16_X16
+	grctfG16R16F,									// On PS3, you have to pack the values when writing to render targets of this type with the Cg intrinsics unpack_4ubyte(pack_2half(float2)), PSN:CELL_GCM_TEXTURE_Y16_X16_FLOAT
+	grctfA32B32G32R32F,								//PSN:CELL_GCM_TEXTURE_W32_Z32_Y32_X32_FLOAT
+	NONPSN_FMT_ONLY(grctfA16B16G16R16F_NoExpand),	// Non-filterable put "pure" floating point on xenon
+
+	NONPSN_FMT_ONLY(grctfA16B16G16R16),
+	grctfL8,										//PSN:CELL_GCM_TEXTURE_B8
+	NONPSN_FMT_ONLY(grctfL16),
+	PC_FMT_ONLY(grctfG8R8),
+
+	XENON_FMT_ONLY(grctfG8R8_XENON),
+	grctfA1R5G5B5,									//PSN:CELL_GCM_TEXTURE_A1R5G5B5
+	grctfD24S8,
+	NONPSN_FMT_ONLY(grctfA4R4G4B4),
+
+	NONPSN_FMT_ONLY(grctfG32R32F),
+	XENON_FMT_ONLY(grctfD24FS8_ReadStencil),		//resolves out to and r8g8b8a8 so that you can read stencil information
+	grctfD16,
+	PSN_FMT_ONLY(grctfG8B8),
+
+	PC_FMT_ONLY(grctfD32F),
+	PC_FMT_ONLY(grctfX8R8G8B8),
+	PC_FMT_ONLY(grctfNULL),
+	PC_FMT_ONLY(grctfX24G8),						//Used for reading stencil in dx11
+	PC_FMT_ONLY(grctfA8),
+	PC_FMT_ONLY(grctfR11G11B10F),
+	PC_FMT_ONLY(grctfD32FS8),
+	PC_FMT_ONLY(grctfX32S8),						// Used for reading 40bit depth buffer in dx11
+	PC_FMT_ONLY(grctfDXT1),
+	PC_FMT_ONLY(grctfDXT3),
+	PC_FMT_ONLY(grctfDXT5),
+	PC_FMT_ONLY(grctfDXT5A),
+	PC_FMT_ONLY(grctfDXN),
+	PC_FMT_ONLY(grctfBC6),
+	PC_FMT_ONLY(grctfBC7),
+	NONPSN_FMT_ONLY(grctfA8B8G8R8_SNORM),		    // Used for GPU damage writing /w blending, no support for integer signed blending format on PS3
+	PC_FMT_ONLY(grctfA8B8G8R8),
+#if RSG_DURANGO
+	PC_FMT_ONLY(grctfNV12),
+#endif
+	grctfCount
+};
+
 namespace rage
 {
 	class grcImage;
@@ -27,7 +87,7 @@ namespace rage
 	struct grcTextureLock
 	{
 		int   MipLevel;
-		pVoid Base;
+		void* Base;
 		int   Pitch;
 		int   BitsPerPixel;
 		int   Width;
@@ -136,19 +196,20 @@ namespace rage
 	protected:
 
 		// Unused (leftover CellGcmTexture PS3 type)
+		// Weirdly enough Orbis and Durango textures use these in wildly unintended ways.
 		struct
 		{
 			u8  Format;
 			u8  Mipmap;
 			u8  Dimension;
-			u8  Cubemap;
-			u32 Remap;
+			u8  Cubemap; // Image type
+			u32 Remap; // Owns memory
 			u16 Width;
 			u16 Height;
 			u16 Depth;
-			u8  Location;
-			u8	Padding;
-			u32 Pitch;
+			u8  Location; // Tile mode
+			u8	Padding; // Bind flag
+			u32 Pitch; // Uses pre-allocated memory
 			u32 Offset;
 		}						 m_Texture;
 		ConstString				 m_Name;
@@ -240,10 +301,10 @@ namespace rage
 		virtual const grcTexture* GetReference() const { return this; }
 		virtual grcTexture*       GetReference() { return this; }
 
-		virtual bool IsSRGB() const = 0;
+		virtual bool IsSRGB() const { return false; };
 
-		virtual const void* GetTexturePtr() const { return (void*)m_CachedTexturePtr; }
-		virtual void*       GetTexturePtr() { return (void*)m_CachedTexturePtr; }
+		virtual const void* GetTexturePtr() const { return m_CachedTexturePtr; }
+		virtual void*       GetTexturePtr() { return m_CachedTexturePtr; }
 		virtual void*       GetTextureView() const = 0;
 
 		virtual void UpdateGPUCopy() {}

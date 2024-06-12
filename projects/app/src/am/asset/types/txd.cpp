@@ -4,7 +4,7 @@
 #include "am/string/string.h"
 #include "am/system/worker.h"
 #include "am/xml/iterator.h"
-#include "rage/grcore/texturepc.h"
+#include "rage/grcore/texturegnm.h"
 #include "helpers/format.h"
 #include "texpresets.h"
 
@@ -202,10 +202,7 @@ void rageam::asset::TxdAsset::ParseFromGame(rage::grcTextureDictionary* object)
 
 	for (u16 i = 0; i < object->GetSize(); i++)
 	{
-		rage::grcTextureDX11* tex = (rage::grcTextureDX11*)(object->GetValueAt(i));
-
-		pVoid pixelData = tex->GetBackingStore();
-		AM_ASSERT(pixelData, "TxdAsset::ParseFromGame() -> No pixel data in the ram");
+		rage::grcTextureGNM* tex = (rage::grcTextureGNM*)(object->GetValueAt(i));
 
 		// Format path to .dds file in asset directory
 		file::WPath texPath = GetDirectoryPath() / String::ToWideTemp(tex->GetName()) + L".dds";
@@ -350,13 +347,13 @@ rage::grcTexture* rageam::asset::TxdAsset::CompileSingleTexture(TextureTune& tun
 		return nullptr;
 
 	graphics::ImageInfo& imageInfo = encodedInfo.ImageInfo;
-	rage::grcTextureDX11* gameTexture = new rage::grcTextureDX11(
+	rage::grcTextureGNM* gameTexture = new rage::grcTextureGNM(
 		imageInfo.Width,
 		imageInfo.Height,
 		imageInfo.MipCount,
 		ImagePixelFormatToDXGI(imageInfo.PixelFormat),
 		compressedImage->GetPixelDataBytes(),
-		storeData);
+		nullptr);
 	gameTexture->SetName(validatedName);
 
 	return gameTexture;
@@ -410,7 +407,7 @@ rage::grcTexture* rageam::asset::TxdAsset::GetNoneTexture()
 {
 	if(!sm_NoneTexture)
 	{
-		sm_NoneTexture = new rage::grcTextureDX11((rage::grcTextureDX11&)*CreateMissingTexture(""));
+		sm_NoneTexture = new rage::grcTextureGNM((rage::grcTextureGNM&)*CreateMissingTexture(""));
 		sm_NoneTexture->SetName(MISSING_TEXTURE_NAME);
 	}
 	return sm_NoneTexture;
@@ -430,12 +427,12 @@ rage::grcTexture* rageam::asset::TxdAsset::CreateMissingTexture(ConstString text
 		// This is used on game models, we need mip maps
 		checker = checker->GenerateMipMaps();
 
-		sm_MissingTexture = new rage::grcTextureDX11(
+		sm_MissingTexture = new rage::grcTextureGNM(
 			checker->GetWidth(), checker->GetHeight(), checker->GetMipCount(), 
 			ImagePixelFormatToDXGI(checker->GetPixelFormat()), checker->GetPixelDataBytes());
 	}
 
-	rage::grcTextureDX11* texture = new rage::grcTextureDX11((rage::grcTextureDX11&)*sm_MissingTexture);
+	rage::grcTextureGNM* texture = new rage::grcTextureGNM((rage::grcTextureGNM&)*sm_MissingTexture);
 	SetMissingTextureName(texture, textureName);
 	return texture;
 }

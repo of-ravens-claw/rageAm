@@ -2,7 +2,7 @@
 
 #include "am/graphics/render.h"
 #include "am/system/worker.h"
-#include "rage/grcore/texturepc.h"
+#include "rage/grcore/texturegnm.h"
 
 rageam::List<rageam::asset::HotDrawable::TextureToRemove> rageam::asset::HotDrawable::sm_TexturesToRemove;
 std::mutex rageam::asset::HotDrawable::sm_TexturesToRemoveMutex;
@@ -93,7 +93,7 @@ void rageam::asset::HotDrawable::LoadTextureAsync(const TxdAssetPtr& txdAsset, T
 	// NOTE: We assume that txdAsset will not be touched when this task is active!
 	BackgroundTaskPtr task = BackgroundWorker::Run([txdAsset, tune]
 		{
-			rage::pgUPtr texture = rage::pgUPtr((rage::grcTextureDX11*) txdAsset->CompileSingleTexture(*tune));
+			rage::pgUPtr texture = rage::pgUPtr((rage::grcTextureGNM*) txdAsset->CompileSingleTexture(*tune));
 			bool success = texture != nullptr; // Check here because SetCurrentResult will move pointer
 			BackgroundWorker::SetCurrentResult(texture);
 			if (success)
@@ -109,7 +109,7 @@ void rageam::asset::HotDrawable::LoadTextureAsync(const TxdAssetPtr& txdAsset, T
 			rage::grcTexture* texture;
 			if (task->IsSuccess())
 			{
-				auto& texturePtr = task->GetResult<rage::pgUPtr<rage::grcTextureDX11>>();
+				auto& texturePtr = task->GetResult<rage::pgUPtr<rage::grcTextureGNM>>();
 				texture = texturePtr.Get();
 				texturePtr.SuppressDelete();
 			}
